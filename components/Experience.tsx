@@ -10,9 +10,10 @@ interface ExperienceProps {
   characters: CharacterData[];
   selectedIndex: number;
   onSelect: (index: number) => void;
+  mode: 'selecting' | 'confirming' | 'game';
 }
 
-const CarouselGroup: React.FC<ExperienceProps> = ({ characters, selectedIndex, onSelect }) => {
+const CarouselGroup: React.FC<ExperienceProps> = ({ characters, selectedIndex, onSelect, mode }) => {
   const groupRef = useRef<THREE.Group>(null);
   const targetRotation = useRef(0);
 
@@ -23,10 +24,13 @@ const CarouselGroup: React.FC<ExperienceProps> = ({ characters, selectedIndex, o
 
   useFrame((state, delta) => {
     if (groupRef.current) {
+      // Rotate faster if confirming for a dizzying effect, or keep locked
+      const speed = mode === 'confirming' ? 2 : 5;
+      
       groupRef.current.rotation.y = THREE.MathUtils.lerp(
         groupRef.current.rotation.y,
         targetRotation.current,
-        delta * 5
+        delta * speed
       );
     }
   });
@@ -43,9 +47,10 @@ const CarouselGroup: React.FC<ExperienceProps> = ({ characters, selectedIndex, o
             key={char.id}
             data={char}
             isActive={index === selectedIndex}
+            isConfirmed={index === selectedIndex && mode === 'confirming'}
             position={[x, 0, z]}
-            rotation={[0, angle, 0]} // Rotate character to face center (or camera depending on pref)
-            onClick={() => onSelect(index)}
+            rotation={[0, angle, 0]} // Rotate character to face center
+            onClick={() => mode === 'selecting' && onSelect(index)}
           />
         );
       })}
@@ -55,10 +60,17 @@ const CarouselGroup: React.FC<ExperienceProps> = ({ characters, selectedIndex, o
 
 const Experience: React.FC<ExperienceProps> = (props) => {
   const activeColor = props.characters[props.selectedIndex].color;
+  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
 
   return (
     <Canvas shadows dpr={[1, 2]} gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}>
-      <PerspectiveCamera makeDefault position={CAMERA_POSITION} fov={40} />
+      <PerspectiveCamera 
+        ref={cameraRef}
+        makeDefault 
+        position={CAMERA_POSITION} 
+        fov={40} 
+      />
+      <CameraController mode={props.mode} />
       
       <color attach="background" args={['#050505']} />
 
@@ -67,7 +79,7 @@ const Experience: React.FC<ExperienceProps> = (props) => {
         position={[0, 10, 5]}
         angle={0.5}
         penumbra={0.5}
-        intensity={2}
+        intensity={props.mode === 'confirming' ? 10 : 2} // Brighten on confirm
         castShadow
         shadow-bias={-0.0001}
         color={activeColor}
@@ -76,23 +88,13 @@ const Experience: React.FC<ExperienceProps> = (props) => {
       {/* Fill Light */}
       <ambientLight intensity={0.4} />
       
-      {/* Rim Light for depth */}
-      <SpotLight
-        position={[-5, 5, -5]}
-        angle={0.5}
-        intensity={1}
-        color="cyan"
-      />
-       <SpotLight
-        position={[5, 5, -5]}
-        angle={0.5}
-        intensity={1}
-        color="purple"
-      />
+      {/* Rim Lights */}
+      <SpotLight position={[-5, 5, -5]} angle={0.5} intensity={1} color="cyan" />
+      <SpotLight position={[5, 5, -5]} angle={0.5} intensity={1} color="purple" />
 
       <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={0.5} />
       
-      {/* Character Stage - Moved to -1.1 to perfectly center the characters (who are ~2 units tall) on screen */}
+      {/* Character Stage */}
       <group position={[0, -1.1, 0]}>
         <CarouselGroup {...props} />
         
@@ -106,23 +108,25 @@ const Experience: React.FC<ExperienceProps> = (props) => {
             color="#000000" 
         />
         
-        {/* Reflective Floor */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
-          <planeGeometry args={[50, 50]} />
-          <MeshReflectorMaterial
-            blur={[300, 100]}
-            resolution={1024}
-            mixBlur={1}
-            mixStrength={40}
-            roughness={1}
-            depthScale={1.2}
-            minDepthThreshold={0.4}
-            maxDepthThreshold={1.4}
-            color="#101010"
-            metalness={0.5}
-            mirror={1}
-          />
-        </mesh>
+        {/* Reflective Floor - fade out on confirm */}
+        <group visible={props.mode !== 'confirming'}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
+            <planeGeometry args={[50, 50]} />
+            <MeshReflectorMaterial
+                blur={[300, 100]}
+                resolution={1024}
+                mixBlur={1}
+                mixStrength={40}
+                roughness={1}
+                depthScale={1.2}
+                minDepthThreshold={0.4}
+                maxDepthThreshold={1.4}
+                color="#101010"
+                metalness={0.5}
+                mirror={1}
+            />
+            </mesh>
+        </group>
       </group>
 
       <Environment preset="city" blur={0.8} />
@@ -130,5 +134,30 @@ const Experience: React.FC<ExperienceProps> = (props) => {
     </Canvas>
   );
 };
+
+// Helper component to handle camera animation
+const CameraController = ({ mode }: { mode: string }) => {
+    useFrame((state, delta) => {
+        // Target position based on mode
+        // Normal: [0, 0.8, 7.5] (defined in constants)
+        // Confirming: Zoom in close to [0, 1, 4.5] (Character is at Z~3.5, so this is 1 unit away)
+        
+        const targetPos = new THREE.Vector3(0, 0.8, 7.5);
+        
+        if (mode === 'confirming') {
+            targetPos.set(0, 1.2, 4.2); // Close up on face/upper chest
+        }
+
+        // Smoothly interpolate current camera position to target
+        state.camera.position.lerp(targetPos, delta * 2);
+        
+        // Add subtle shake if confirming
+        if (mode === 'confirming') {
+            state.camera.position.x += (Math.random() - 0.5) * 0.02;
+            state.camera.position.y += (Math.random() - 0.5) * 0.02;
+        }
+    });
+    return null;
+}
 
 export default Experience;
