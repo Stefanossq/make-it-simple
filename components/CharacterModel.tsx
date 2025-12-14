@@ -62,11 +62,13 @@ const SelectionRing = ({ color, isActive }: { color: string; isActive: boolean }
 const Humanoid = ({ 
   color, 
   isActive, 
+  isHovered,
   buildType = 'standard', // 'heavy', 'slim', 'standard'
   flashIntensity = 0
 }: { 
   color: string; 
   isActive: boolean;
+  isHovered: boolean;
   buildType?: 'heavy' | 'slim' | 'standard';
   flashIntensity: number;
 }) => {
@@ -106,10 +108,13 @@ const Humanoid = ({
   }, [buildType]);
 
   const matColor = isActive ? color : "#555";
-  const baseGlow = isActive ? 0.5 : 0;
+  
+  // Hover glow logic
+  const baseGlow = isActive ? 0.5 : (isHovered ? 0.3 : 0);
+  
   // Combine base glow with the momentary flash intensity
   const totalEmissiveIntensity = baseGlow + flashIntensity * 2;
-  const emissiveColor = isActive ? color : "black";
+  const emissiveColor = isActive || isHovered ? color : "black";
 
   // Shared material props for the suit parts
   const suitMaterial = (
@@ -118,7 +123,7 @@ const Humanoid = ({
         metalness={0.6} 
         roughness={0.4} 
         emissive={emissiveColor}
-        emissiveIntensity={flashIntensity} // Flash the whole body slightly
+        emissiveIntensity={flashIntensity} // Flash the whole body slightly, but don't glow on hover
       />
   );
 
@@ -143,7 +148,7 @@ const Humanoid = ({
       <RoundedBox args={[props.torso[0] * 0.8, props.torso[1] * 0.4, props.torso[2] + 0.02]} radius={0.02} position={[0, 1.3, 0]}>
          <meshStandardMaterial 
             color={flashIntensity > 0.5 ? "#fff" : matColor} 
-            emissive={isActive ? color : "white"} // Flash white when inactive->active
+            emissive={isActive || isHovered ? color : "white"} 
             emissiveIntensity={totalEmissiveIntensity} 
             metalness={0.8} 
             roughness={0.2} 
@@ -163,7 +168,11 @@ const Humanoid = ({
             {suitMaterial}
         </Cylinder>
         <Sphere args={[props.armThick]} position={[0, 0, 0]}>
-             <meshStandardMaterial color={matColor} emissive={emissiveColor} emissiveIntensity={flashIntensity} />
+             <meshStandardMaterial 
+                color={matColor} 
+                emissive={emissiveColor} 
+                emissiveIntensity={isActive ? 0.5 : (isHovered ? 0.3 : 0) + flashIntensity} 
+             />
         </Sphere>
       </group>
       <group position={[props.shoulders / 1.8, 1.35, 0]}>
@@ -172,7 +181,11 @@ const Humanoid = ({
              {suitMaterial}
         </Cylinder>
         <Sphere args={[props.armThick]} position={[0, 0, 0]}>
-             <meshStandardMaterial color={matColor} emissive={emissiveColor} emissiveIntensity={flashIntensity} />
+             <meshStandardMaterial 
+                color={matColor} 
+                emissive={emissiveColor} 
+                emissiveIntensity={isActive ? 0.5 : (isHovered ? 0.3 : 0) + flashIntensity} 
+             />
         </Sphere>
       </group>
 
@@ -195,8 +208,8 @@ const Humanoid = ({
          <boxGeometry args={[0.25 * props.headScale, 0.08, 0.1]} />
          <meshStandardMaterial 
             color={isActive ? "white" : "#111"} 
-            emissive={isActive ? color : "black"} 
-            emissiveIntensity={isActive ? 2 + flashIntensity * 5 : 0} // Eyes flash bright
+            emissive={isActive || isHovered ? color : "black"} 
+            emissiveIntensity={(isActive ? 2 : (isHovered ? 1 : 0)) + flashIntensity * 5} 
             toneMapped={false}
          />
       </mesh>
@@ -206,19 +219,19 @@ const Humanoid = ({
 
 // --- Specific Character Wrappers ---
 
-const TankHuman = ({ color, isActive, flashIntensity }: { color: string; isActive: boolean; flashIntensity: number }) => (
-  <Humanoid color={color} isActive={isActive} buildType="heavy" flashIntensity={flashIntensity} />
+const TankHuman = ({ color, isActive, isHovered, flashIntensity }: { color: string; isActive: boolean; isHovered: boolean; flashIntensity: number }) => (
+  <Humanoid color={color} isActive={isActive} isHovered={isHovered} buildType="heavy" flashIntensity={flashIntensity} />
 );
 
-const SpeedHuman = ({ color, isActive, flashIntensity }: { color: string; isActive: boolean; flashIntensity: number }) => (
+const SpeedHuman = ({ color, isActive, isHovered, flashIntensity }: { color: string; isActive: boolean; isHovered: boolean; flashIntensity: number }) => (
   <group rotation={[0.2, 0, 0]}> {/* Lean forward */}
-    <Humanoid color={color} isActive={isActive} buildType="slim" flashIntensity={flashIntensity} />
+    <Humanoid color={color} isActive={isActive} isHovered={isHovered} buildType="slim" flashIntensity={flashIntensity} />
   </group>
 );
 
-const MagicHuman = ({ color, isActive, flashIntensity }: { color: string; isActive: boolean; flashIntensity: number }) => (
+const MagicHuman = ({ color, isActive, isHovered, flashIntensity }: { color: string; isActive: boolean; isHovered: boolean; flashIntensity: number }) => (
   <group>
-    <Humanoid color={color} isActive={isActive} buildType="standard" flashIntensity={flashIntensity} />
+    <Humanoid color={color} isActive={isActive} isHovered={isHovered} buildType="standard" flashIntensity={flashIntensity} />
     {isActive && (
        <Sparkles count={30} scale={2} size={3} speed={1} opacity={0.8} color={color} position={[0, 1, 0]} />
     )}
@@ -230,6 +243,7 @@ const MagicHuman = ({ color, isActive, flashIntensity }: { color: string; isActi
 const CharacterModel: React.FC<CharacterModelProps> = ({ data, isActive, position, rotation, onClick }) => {
   const groupRef = useRef<Group>(null);
   const [flash, setFlash] = useState(0);
+  const [hovered, setHovered] = useState(false);
 
   // Trigger flash animation on select
   useEffect(() => {
@@ -257,6 +271,10 @@ const CharacterModel: React.FC<CharacterModelProps> = ({ data, isActive, positio
         height + Math.sin(state.clock.elapsedTime * breatheSpeed) * 0.05,
         0.1
       );
+
+      // Scale Animation (Active vs Hover vs Idle)
+      const targetScale = isActive ? 1.3 : (hovered ? 1.15 : 1);
+      groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), delta * 8);
     }
 
     // Decay flash value
@@ -269,17 +287,15 @@ const CharacterModel: React.FC<CharacterModelProps> = ({ data, isActive, positio
   const renderVisuals = () => {
     switch (data.role) {
       case 'Heavy Defender':
-        return <TankHuman color={data.color} isActive={isActive} flashIntensity={flash} />;
+        return <TankHuman color={data.color} isActive={isActive} isHovered={hovered} flashIntensity={flash} />;
       case 'Swift Scout':
-        return <SpeedHuman color={data.color} isActive={isActive} flashIntensity={flash} />;
+        return <SpeedHuman color={data.color} isActive={isActive} isHovered={hovered} flashIntensity={flash} />;
       case 'Arcane Weaver':
-        return <MagicHuman color={data.color} isActive={isActive} flashIntensity={flash} />;
+        return <MagicHuman color={data.color} isActive={isActive} isHovered={hovered} flashIntensity={flash} />;
       default:
-        return <Humanoid color={data.color} isActive={isActive} flashIntensity={flash} />;
+        return <Humanoid color={data.color} isActive={isActive} isHovered={hovered} flashIntensity={flash} />;
     }
   };
-
-  const activeScale = isActive ? 1.3 : 1;
 
   return (
     <group 
@@ -287,7 +303,8 @@ const CharacterModel: React.FC<CharacterModelProps> = ({ data, isActive, positio
         position={position} 
         rotation={rotation}
         onClick={(e) => { e.stopPropagation(); onClick(); }}
-        scale={[activeScale, activeScale, activeScale]}
+        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); document.body.style.cursor = 'auto'; }}
     >
       <SelectionRing color={data.color} isActive={isActive} />
       
