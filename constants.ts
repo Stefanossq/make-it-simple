@@ -30,5 +30,6 @@ export const CHARACTERS: CharacterData[] = [
   }
 ];
 
-export const CAMERA_POSITION: [number, number, number] = [0, 2, 7.5];
+// Lowered Y slightly to center the body mass, Z adjusted for framing
+export const CAMERA_POSITION: [number, number, number] = [0, 0.8, 7.5];
 export const CAROUSEL_RADIUS = 3.5;

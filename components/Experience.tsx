@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment, ContactShadows, Stars, SpotLight, PerspectiveCamera, MeshReflectorMaterial, Float } from '@react-three/drei';
+import { Environment, ContactShadows, Stars, SpotLight, PerspectiveCamera, MeshReflectorMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 import { CharacterData } from '../types';
 import CharacterModel from './CharacterModel';
@@ -92,8 +92,19 @@ const Experience: React.FC<ExperienceProps> = (props) => {
 
       <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={0.5} />
       
-      <group position={[0, -1.5, 0]}>
+      {/* Character Stage - Moved to -1.1 to perfectly center the characters (who are ~2 units tall) on screen */}
+      <group position={[0, -1.1, 0]}>
         <CarouselGroup {...props} />
+        
+        {/* Dynamic Soft Shadows */}
+        <ContactShadows 
+            opacity={0.6} 
+            scale={20} 
+            blur={2} 
+            far={4} 
+            resolution={256} 
+            color="#000000" 
+        />
         
         {/* Reflective Floor */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
@@ -109,13 +120,13 @@ const Experience: React.FC<ExperienceProps> = (props) => {
             maxDepthThreshold={1.4}
             color="#101010"
             metalness={0.5}
-            mirror={1} // Mirror 1 = perfect reflection
+            mirror={1}
           />
         </mesh>
       </group>
 
       <Environment preset="city" blur={0.8} />
-      <fog attach="fog" args={['#050505', 8, 25]} />
+      <fog attach="fog" args={['#050505', 5, 20]} />
     </Canvas>
   );
 };
